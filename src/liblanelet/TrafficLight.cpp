@@ -30,75 +30,85 @@
 //----------------------------------------------------------------------
 /*!\file
  *
- * \author  Philipp Bender <philipp.bender@fzi.de>
- * \date    2014-01-01
+ * \author  Philip Schoerner <schoerner@fzi.de>
+ * \author  Jens Doll <doll@fzi.de>
+ * \date    2018-04-03
  *
  */
 //----------------------------------------------------------------------
 
-#pragma once
-
-#include "ImportExport.h"
-
-#include <map>
-#include <boost/lexical_cast.hpp>
-#include <string>
-#include <boost/format.hpp>
+#include "TrafficLight.hpp"
+#include "Polygon.hpp"
 
 namespace LLet
 {
-struct AttributeValue
+
+TrafficLight::TrafficLight(const std::vector<point_with_id_t>& vertices)
 {
-    AttributeValue( const std::string& v=std::string()) : value(v)
-    {
-
-    }
-
-    std::string value;
-
-    operator double() const
-    {
-        return as_double();
-    }
-
-    operator std::string() const
-    {
-        return value;
-    }
-
-    std::string as_string() const
-    {
-        return value;
-    }
-
-    double as_double() const
-    {
-        try
-        {
-            return boost::lexical_cast< double >(value);
-        }
-        catch(...)
-        {
-            // TODO: maybe catch more selectively ...
-            boost::format fmt("AttributeValue '%s' not convertible to double.");
-            throw std::runtime_error((fmt % value).str());
-        }
-    }
-
-};
-
-typedef std::map< std::string, AttributeValue > AttributeMap;
-
-class LANELET_IMPORT_EXPORT HasAttributes
-{
-public:
-    const AttributeValue& attribute(const std::string &key ) const;
-    AttributeMap& attributes();
-    const AttributeMap& attributes() const;
-    bool hasAttribute(const std::string &key) const;
-private:
-    AttributeMap _attributes;
-    static AttributeValue null_value;
-};
-
+  _vertices = vertices;
+  assert(isValid());
+  _polygon.reset(new Polygon(vertices));
 }
+
+TrafficLight::~TrafficLight ()
+{
+}
+
+bool TrafficLight::isValid()
+{
+  return (_vertices.size() >= 3) && (_vertices.front().get<2>() == _vertices.back().get<2>());
+}
+
+const int64_t TrafficLight::getIntersectionId() const
+{
+  return _intersection_id;
+}
+
+const int64_t TrafficLight::getSignalGroupId() const
+{
+  return _signalgroup_id;
+}
+
+const int64_t TrafficLight::getId() const
+{
+  return _id;
+}
+
+void TrafficLight::setId(const int64_t id)
+{
+  _id = id;
+}
+
+void TrafficLight::setIds(const int64_t intersection_id, const int64_t signalgroup_id)
+{
+  _intersection_id = intersection_id;
+  _signalgroup_id = signalgroup_id;
+}
+
+const TrafficLight::Type TrafficLight::getType() const
+{
+  return _event_type;
+}
+
+void TrafficLight::setType(const Type value)
+{
+  _event_type = value;
+}
+
+const std::vector< point_with_id_t >& TrafficLight::getVertices() const
+{
+  return _vertices;
+}
+
+const std::vector< regulatory_element_ptr_t >& TrafficLight::getRegulatoryElements() const
+{
+  return _regulatory_elements;
+}
+
+void TrafficLight::addRegulatoryElement(regulatory_element_ptr_t element)
+{
+  _regulatory_elements.push_back(element);
+}
+
+
+} // namespace

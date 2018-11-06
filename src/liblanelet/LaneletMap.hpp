@@ -1,33 +1,30 @@
 // this is for emacs file handling -*- mode: c++; indent-tabs-mode: nil -*-
 
 // -- BEGIN LICENSE BLOCK ----------------------------------------------
-// Copyright (c) 2017, FZI Forschungszentrum Informatik
-// All rights reserved.
+// Copyright (c) 2018, FZI Forschungszentrum Informatik
 //
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
+// Redistribution and use in source and binary forms, with or without modification, are permitted
+// provided that the following conditions are met:
 //
-// * Redistributions of source code must retain the above copyright notice, this
-//   list of conditions and the following disclaimer.
+// 1. Redistributions of source code must retain the above copyright notice, this list of conditions
+//    and the following disclaimer.
 //
-// * Redistributions in binary form must reproduce the above copyright notice,
-//   this list of conditions and the following disclaimer in the documentation
-//   and/or other materials provided with the distribution.
+// 2. Redistributions in binary form must reproduce the above copyright notice, this list of
+//    conditions and the following disclaimer in the documentation and/or other materials provided
+//    with the distribution.
 //
-// * Neither the name of the copyright holder nor the names of its
-//   contributors may be used to endorse or promote products derived from
-//   this software without specific prior written permission.
+// 3. Neither the name of the copyright holder nor the names of its contributors may be used to
+//    endorse or promote products derived from this software without specific prior written
+//    permission.
 //
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+// IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+// FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+// WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+// WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // -- END LICENSE BLOCK ------------------------------------------------
 
 //----------------------------------------------------------------------
@@ -44,6 +41,7 @@
 #include "Lanelet.hpp"
 #include "ParkingSpace.hpp"
 #include "EventRegion.hpp"
+#include "TrafficLight.hpp"
 #include "LLTree.hpp"
 #include "LaneletGraph.hpp"
 #include "Corridor.hpp"
@@ -96,16 +94,16 @@ public:
    * \param strip The LineStrip.
    * \param id The id of the LineStrip.
    */
-  void insert(LLet::strip_ptr_t strip, int32_t id) { m_linestrips.insert(std::make_pair(strip, id)); }
+  void insert(LLet::strip_ptr_t strip, int64_t id) { m_linestrips.insert(std::make_pair(strip, id)); }
 
   /*!
    * \brief ways Returns the map of all stored LineStrips with their ids.
    * \return A map of all stored LineStrips with their ids.
    */
-  std::map<LLet::strip_ptr_t, int32_t> ways() { return m_linestrips; }
+  std::map<LLet::strip_ptr_t, int64_t> ways() { return m_linestrips; }
 
 private:
-  std::map<LLet::strip_ptr_t, int32_t> m_linestrips;
+  std::map<LLet::strip_ptr_t, int64_t> m_linestrips;
 };
 
 
@@ -126,6 +124,10 @@ public:
     return "node";
   }
 
+  std::string operator()(LLet::event_region_ptr_t event_region) const {
+    return "way";
+  }
+
   std::string operator()(LLet::ParkingSpace parking_space) const {
     return "way";
   }
@@ -141,9 +143,9 @@ public:
 
     struct ReachableSetInfo
     {
-      int32_t index;
+      int64_t index;
       double total_distance;
-      explicit ReachableSetInfo(int32_t index_=-1, double distance=0.0) : index(index_), total_distance(distance) {}
+      explicit ReachableSetInfo(int64_t index_=-1, double distance=0.0) : index(index_), total_distance(distance) {}
       bool operator<(const ReachableSetInfo &other) const { return total_distance > other.total_distance; }
     };
 
@@ -173,6 +175,16 @@ public:
      */
     lanelet_ptr_vector shortest_path(const std::vector<lanelet_ptr_vector> &paths ) const;
 
+    /**
+     * @brief shortest_paths Calculates the shortest path between \a start lanelet and mutiple \a destinations lanelets.
+     * @param start The lanelet to start
+     * @param destinations A set with mutiple destinations
+     * @return A set of lanelets (path) for each destination.
+     */
+    lanelet_ptr_vector shortest_paths(const lanelet_ptr_vector &starts,
+                                                   const lanelet_ptr_vector &destinations ) const;
+
+ 
     /**
      * @brief shortest_paths Calculates the shortest path between \a start lanelet and mutiple \a destinations lanelets.
      * @param start The lanelet to start
@@ -316,7 +328,7 @@ public:
     //! \todo replace the version above with this one, since it would be no extra effort if we would place the result directly into the multimap.
     void map_matching_probabilistic(const point_with_id_t &source, LaneletByProbabilityMap &lanelet_map, double max_distance, boost::tuple< double, double > vehicle_velocity, double threshold=0.1) const;
 
-    const lanelet_ptr_t& lanelet_by_id( int32_t id ) const;
+    const lanelet_ptr_t& lanelet_by_id( int64_t id ) const;
 
     const Graph& graph() const;
 
@@ -332,8 +344,11 @@ public:
     //! Read access to all of the map's event region
     const std::vector< event_region_ptr_t >& event_regions() const;
 
+    //! Read access to all of the map's traffic lights
+    const std::vector< traffic_light_ptr_t >& traffic_lights() const;
+
     //! returns the minimum node id-1
-    int32_t get_minimum_node_id();
+    int64_t get_minimum_node_id();
 
     /*! Calculate the (metric) bounding box of the map considering all contained lanelets.
      *  \param gnss_reference_point The reference point for conversion to metric coordinate system
@@ -357,13 +372,14 @@ private:
     const std::vector< lanelet_ptr_t > _lanelets;
     std::vector< parking_space_ptr_t > _parking_spaces;
     const std::vector< event_region_ptr_t > _event_regions;
-    int32_t _minimum_node_id;
+    const std::vector< traffic_light_ptr_t > _traffic_lights;
+    int64_t _minimum_node_id;
 
     LLet::Graph _graph;
 
 
 
-    int32_t vertex_id_by_lanelet( const lanelet_ptr_t& lanelet) const;
+    int64_t vertex_id_by_lanelet( const lanelet_ptr_t& lanelet) const;
 };
 
 typedef boost::shared_ptr< LaneletMap > lanelet_map_ptr_t;

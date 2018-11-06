@@ -1,33 +1,30 @@
 // this is for emacs file handling -*- mode: c++; indent-tabs-mode: nil -*-
 
 // -- BEGIN LICENSE BLOCK ----------------------------------------------
-// Copyright (c) 2017, FZI Forschungszentrum Informatik
-// All rights reserved.
+// Copyright (c) 2018, FZI Forschungszentrum Informatik
 //
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
+// Redistribution and use in source and binary forms, with or without modification, are permitted
+// provided that the following conditions are met:
 //
-// * Redistributions of source code must retain the above copyright notice, this
-//   list of conditions and the following disclaimer.
+// 1. Redistributions of source code must retain the above copyright notice, this list of conditions
+//    and the following disclaimer.
 //
-// * Redistributions in binary form must reproduce the above copyright notice,
-//   this list of conditions and the following disclaimer in the documentation
-//   and/or other materials provided with the distribution.
+// 2. Redistributions in binary form must reproduce the above copyright notice, this list of
+//    conditions and the following disclaimer in the documentation and/or other materials provided
+//    with the distribution.
 //
-// * Neither the name of the copyright holder nor the names of its
-//   contributors may be used to endorse or promote products derived from
-//   this software without specific prior written permission.
+// 3. Neither the name of the copyright holder nor the names of its contributors may be used to
+//    endorse or promote products derived from this software without specific prior written
+//    permission.
 //
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+// IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+// FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+// WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+// WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // -- END LICENSE BLOCK ------------------------------------------------
 
 //----------------------------------------------------------------------
@@ -42,6 +39,7 @@
 #include "Lanelet.hpp"
 #include "Polygon.hpp"
 
+#include <boost/make_shared.hpp>
 #include <boost/format.hpp>
 #include <boost/foreach.hpp>
 
@@ -54,7 +52,7 @@ Lanelet::Lanelet()
 {
 }
 
-Lanelet::Lanelet(int32_t id, const strip_ptr_t &left, const strip_ptr_t &right) :
+Lanelet::Lanelet(int64_t id, const strip_ptr_t &left, const strip_ptr_t &right) :
     _id(id),
     _bounds(boost::make_tuple(left, right, strip_ptr_t())),
     m_polygon()
@@ -79,7 +77,24 @@ std::vector<regulatory_element_ptr_t> &Lanelet::regulatory_elements()
     return _regulatory_elements;
 }
 
-int32_t Lanelet::id() const
+std::vector< boost::shared_ptr<Lanelet> > Lanelet::related_lanelets(const std::string& role)
+{
+  std::vector< boost::shared_ptr<Lanelet> > result;
+  for (std::size_t i = 0; i < _lanelets_relations.size(); i++)
+  {
+    if (_lanelets_relations[i].second == role)
+    {
+      boost::shared_ptr<Lanelet> p = _lanelets_relations[i].first.lock();
+      if (p)
+      {
+        result.push_back(p);
+      }
+    }
+  }
+  return result;
+}
+
+int64_t Lanelet::id() const
 {
     return _id;
 }
@@ -87,6 +102,18 @@ int32_t Lanelet::id() const
 void Lanelet::add_regulatory_element(const regulatory_element_ptr_t &elem)
 {
   this->_regulatory_elements.push_back( elem );
+}
+
+void Lanelet::add_related_lanelet( const std::string& role, const boost::shared_ptr<Lanelet>& lanelet )
+{
+  this->_lanelets_relations.push_back(std::make_pair(boost::weak_ptr<Lanelet>(lanelet), role));
+}
+
+boost::shared_ptr<Lanelet> Lanelet::reverse() const
+{
+  return boost::make_shared<Lanelet>(_id,
+                                     boost::make_shared<ReversedLineStrip>(boost::get<LLet::RIGHT>(_bounds)),
+                                     boost::make_shared<ReversedLineStrip>(boost::get<LLet::LEFT>(_bounds)));
 }
 
 bool Lanelet::covers_point(const point_with_id_t& query) const
@@ -417,7 +444,7 @@ point_with_id_t Lanelet::intersection_point(const lanelet_ptr_t other_lanelet, d
             //if (point1a_LAT != point2a_LAT || point1a_LON != point2a_LON || point1b_LAT != point2b_LAT || point1b_LON != point2b_LON)
             double intersection_LON = ((point1a_LON*point1b_LAT-point1a_LAT*point1b_LON)*(point2a_LON-point2b_LON)-(point1a_LON-point1b_LON)*(point2a_LON*point2b_LAT-point2a_LAT*point2b_LON))/((point1a_LON-point1b_LON)*(point2a_LAT-point2b_LAT)-(point1a_LAT-point1b_LAT)*(point2a_LON-point2b_LON));
             double intersection_LAT = ((point1a_LON*point1b_LAT-point1a_LAT*point1b_LON)*(point2a_LAT-point2b_LAT)-(point1a_LAT-point1b_LAT)*(point2a_LON*point2b_LAT-point2a_LAT*point2b_LON))/((point1a_LON-point1b_LON)*(point2a_LAT-point2b_LAT)-(point1a_LAT-point1b_LAT)*(point2a_LON-point2b_LON));
-            intersection = boost::make_tuple(intersection_LAT, intersection_LON, -1);
+            intersection = boost::make_tuple(intersection_LAT, intersection_LON, int64_t(-1));
             distance_this -= dist(intersection, point1b);
             distance_other -= dist(intersection, point2b);
             return intersection;

@@ -30,75 +30,97 @@
 //----------------------------------------------------------------------
 /*!\file
  *
- * \author  Philipp Bender <philipp.bender@fzi.de>
- * \date    2014-01-01
+ * \author  Philip Schoerner <schoerner@fzi.de>
+ * \author  Jens Doll <doll@fzi.de>
+ * \date    2018-04-03
  *
  */
 //----------------------------------------------------------------------
+#ifndef LIBLANELET_TRAFFICLIGHT_H_INCLUDED
+#define LIBLANELET_TRAFFICLIGHT_H_INCLUDED
 
-#pragma once
-
-#include "ImportExport.h"
-
-#include <map>
-#include <boost/lexical_cast.hpp>
-#include <string>
-#include <boost/format.hpp>
+#include "RegulatoryElement.hpp"
 
 namespace LLet
 {
-struct AttributeValue
-{
-    AttributeValue( const std::string& v=std::string()) : value(v)
-    {
 
-    }
+class Polygon;
 
-    std::string value;
-
-    operator double() const
-    {
-        return as_double();
-    }
-
-    operator std::string() const
-    {
-        return value;
-    }
-
-    std::string as_string() const
-    {
-        return value;
-    }
-
-    double as_double() const
-    {
-        try
-        {
-            return boost::lexical_cast< double >(value);
-        }
-        catch(...)
-        {
-            // TODO: maybe catch more selectively ...
-            boost::format fmt("AttributeValue '%s' not convertible to double.");
-            throw std::runtime_error((fmt % value).str());
-        }
-    }
-
-};
-
-typedef std::map< std::string, AttributeValue > AttributeMap;
-
-class LANELET_IMPORT_EXPORT HasAttributes
+class LANELET_IMPORT_EXPORT TrafficLight
 {
 public:
-    const AttributeValue& attribute(const std::string &key ) const;
-    AttributeMap& attributes();
-    const AttributeMap& attributes() const;
-    bool hasAttribute(const std::string &key) const;
+
+  enum Type
+  {
+    ALL,
+    LEFT_ONLY,
+    RIGHT_ONLY,
+    STRAIGHT_ONLY,
+    STRAIGHT_LEFT_ONLY,
+    STRAIGHT_RIGHT_ONLY,
+    UNKNOWN
+  };
+
+  /*! Constructor for an event region.
+    * \param vertices must be 5 points and the first and last
+    * point has to be the same.
+    */
+  TrafficLight(const std::vector<point_with_id_t>& vertices);
+
+  //! Destructor
+  ~TrafficLight();
+
+  //! Check if the region is valid.
+  bool isValid();
+
+  //! Getter id
+  const int64_t getId() const;
+  const int64_t getIntersectionId() const;
+  const int64_t getSignalGroupId() const;
+
+  //! Setter id
+  void setId(const int64_t id);
+  void setIds(const int64_t intersection_id, const int64_t signalgroup_id);
+
+  //! Getter event type
+  const Type getType() const;
+
+  //! Setter event type
+  void setType(const Type value);
+
+  //! Getter vertices
+  const std::vector< point_with_id_t >& getVertices() const;
+
+  //! Get all regulatory elements
+  const std::vector< regulatory_element_ptr_t >& getRegulatoryElements() const;
+
+  //! add regulatory element
+  void addRegulatoryElement(regulatory_element_ptr_t element);
+
+
 private:
-    AttributeMap _attributes;
-    static AttributeValue null_value;
+  //! Identification number of the event region
+  int64_t _id;
+  int64_t _intersection_id;
+  int64_t _signalgroup_id;
+
+  //! Type of the event region e.g. intersection etc.
+  Type  _event_type;
+
+  //! The defining points of the event region.
+  std::vector< point_with_id_t > _vertices;
+
+  //! The event region converted into a polygon.
+  boost::shared_ptr<Polygon> _polygon;
+
+  std::vector<regulatory_element_ptr_t> _regulatory_elements;
 };
 
-}
+typedef boost::shared_ptr< TrafficLight >  traffic_light_ptr_t;
+
+} // namespace
+
+
+
+
+#endif

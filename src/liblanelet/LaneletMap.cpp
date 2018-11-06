@@ -1,33 +1,30 @@
 // this is for emacs file handling -*- mode: c++; indent-tabs-mode: nil -*-
 
 // -- BEGIN LICENSE BLOCK ----------------------------------------------
-// Copyright (c) 2017, FZI Forschungszentrum Informatik
-// All rights reserved.
+// Copyright (c) 2018, FZI Forschungszentrum Informatik
 //
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
+// Redistribution and use in source and binary forms, with or without modification, are permitted
+// provided that the following conditions are met:
 //
-// * Redistributions of source code must retain the above copyright notice, this
-//   list of conditions and the following disclaimer.
+// 1. Redistributions of source code must retain the above copyright notice, this list of conditions
+//    and the following disclaimer.
 //
-// * Redistributions in binary form must reproduce the above copyright notice,
-//   this list of conditions and the following disclaimer in the documentation
-//   and/or other materials provided with the distribution.
+// 2. Redistributions in binary form must reproduce the above copyright notice, this list of
+//    conditions and the following disclaimer in the documentation and/or other materials provided
+//    with the distribution.
 //
-// * Neither the name of the copyright holder nor the names of its
-//   contributors may be used to endorse or promote products derived from
-//   this software without specific prior written permission.
+// 3. Neither the name of the copyright holder nor the names of its contributors may be used to
+//    endorse or promote products derived from this software without specific prior written
+//    permission.
 //
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+// IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+// FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+// WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+// WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // -- END LICENSE BLOCK ------------------------------------------------
 
 //----------------------------------------------------------------------
@@ -45,6 +42,7 @@
 #include "Polygon.hpp"
 #include <iostream>
 #include <algorithm>
+#include <sstream>
 #include <cassert>
 #include "LaneletGraph.hpp"
 #include "prettyprint.hpp"
@@ -61,6 +59,7 @@ LaneletMap::LaneletMap(const std::string &filename, const bool ignore_consistenc
   : _lanelets(LLet::parse_xml(filename, ignore_consistency_failures)),
     _parking_spaces(LLet::parse_xml_parking_spaces(filename, ignore_consistency_failures)),
     _event_regions(LLet::parse_xml_event_regions(filename, ignore_consistency_failures)),
+    _traffic_lights(LLet::parse_xml_traffic_lights(filename, ignore_consistency_failures)),
     _minimum_node_id(LLet::get_minimum_node_id(filename, ignore_consistency_failures))
 {
     init();
@@ -73,8 +72,8 @@ std::vector<lanelet_ptr_t> LaneletMap::query(const BoundingBox &box) const
 
 std::vector<lanelet_ptr_t> LaneletMap::shortest_path(const lanelet_ptr_t &start, const lanelet_ptr_t &dest) const
 {
-    int32_t start_index = vertex_id_by_lanelet(start);
-    int32_t dest_index = vertex_id_by_lanelet(dest);
+    int64_t start_index = vertex_id_by_lanelet(start);
+    int64_t dest_index = vertex_id_by_lanelet(dest);
 
 
     boost::optional< std::vector<size_t> > sp = dijkstra_shortest_path(graph(), start_index, dest_index);
@@ -87,14 +86,29 @@ std::vector<lanelet_ptr_t> LaneletMap::shortest_path(const lanelet_ptr_t &start,
     std::vector< lanelet_ptr_t > sp_ll(sp->size());
 
 
-    // this replaces: std::transform(sp->cbegin(), sp->cend(), sp_ll.begin(), [this](int32_t index){ return graph()[index].lanelet;});
+    // this replaces: std::transform(sp->cbegin(), sp->cend(), sp_ll.begin(), [this](int64_t index){ return graph()[index].lanelet;});
     size_t i = 0;
-    BOOST_FOREACH(int32_t index, *sp)
+    BOOST_FOREACH(int64_t index, *sp)
     {
       sp_ll[i++] = graph()[index].lanelet;
     }
 
     return sp_ll;
+}
+
+LaneletMap::lanelet_ptr_vector LaneletMap::shortest_paths(const lanelet_ptr_vector &starts,
+                                                                         const lanelet_ptr_vector &destinations ) const
+{
+  std::vector<lanelet_ptr_vector> all_paths;
+  for (size_t i=0; i < starts.size(); ++i)
+  {
+    std::vector<lanelet_ptr_vector> paths_starting_at_i;
+    paths_starting_at_i = shortest_paths(starts[i], destinations);
+    std::cout << "paths_at_i:" << i << " : " << starts[i]->id() << " " << paths_starting_at_i.size() << std::endl;
+    all_paths.insert(all_paths.end(), paths_starting_at_i.begin(), paths_starting_at_i.end()); 
+  }
+  std::cout << "all_paths:" << all_paths.size() << std::endl;
+  return shortest_path(all_paths);
 }
 
 std::vector< LaneletMap::lanelet_ptr_vector > LaneletMap::shortest_paths(const lanelet_ptr_t &start,
@@ -104,8 +118,11 @@ std::vector< LaneletMap::lanelet_ptr_vector > LaneletMap::shortest_paths(const l
 
   for (size_t index = 0; index < destinations.size(); ++index)
   {
-
-    result.push_back(shortest_path(start, destinations[index]));
+    lanelet_ptr_vector path = shortest_path(start, destinations[index]);
+    if (path.size() > 0)
+    {
+      result.push_back(path);
+    }
   }
 
   return result;
@@ -114,23 +131,21 @@ std::vector< LaneletMap::lanelet_ptr_vector > LaneletMap::shortest_paths(const l
 LaneletMap::lanelet_ptr_vector LaneletMap::shortest_path(const std::vector< lanelet_ptr_vector >& paths ) const
 {
   lanelet_ptr_vector search_result;
-
-  double temporary_path_length = 0;
   double shortest_path_length = std::numeric_limits<double>::max();
 
   for (size_t path_index = 0; path_index < paths.size(); ++path_index)
   {
     lanelet_ptr_vector path = paths[path_index];
-
+    double path_length = 0;
     for (size_t lanelet_index = 0; lanelet_index < path.size(); ++lanelet_index)
     {
-      temporary_path_length += path[lanelet_index]->length(CENTER);
+      path_length += path[lanelet_index]->length(CENTER);
     }
 
-    if (shortest_path_length > temporary_path_length)
+    if (path_length < shortest_path_length)
     {
       search_result = path;
-      shortest_path_length = temporary_path_length;
+      shortest_path_length = path_length;
     }
   }
 
@@ -163,7 +178,7 @@ std::set<lanelet_ptr_t> LaneletMap::reachable_set(const lanelet_ptr_t& start, do
   std::set<lanelet_ptr_t> result;
 
   std::priority_queue<ReachableSetInfo> queue;
-  std::map<int32_t,ReachableSetInfo> nodes;
+  std::map<int64_t,ReachableSetInfo> nodes;
   queue.push(ReachableSetInfo(vertex_id_by_lanelet(start), 0));
   Graph::out_edge_iterator iter, end;
 
@@ -184,7 +199,7 @@ std::set<lanelet_ptr_t> LaneletMap::reachable_set(const lanelet_ptr_t& start, do
       double const weight = boost::get(weights, *iter);
       assert(weight > 0 && "non-positive weight encountered, termination condition violated");
       lanelet_ptr_t const lanelet = _graph[boost::target(*iter, _graph)].lanelet;
-      int32_t idx = vertex_id_by_lanelet(lanelet);
+      int64_t idx = vertex_id_by_lanelet(lanelet);
       if (nodes.find(idx) == nodes.end())
       {
 	nodes[idx] = ReachableSetInfo(idx, current.total_distance + weight);
@@ -219,7 +234,7 @@ std::set<lanelet_ptr_t> LaneletMap::following_set(const lanelet_ptr_t& start, bo
 {
   std::set<lanelet_ptr_t> result;
   Graph::out_edge_iterator iter, end;
-  int32_t current_id = vertex_id_by_lanelet(start);
+  int64_t current_id = vertex_id_by_lanelet(start);
   for (boost::tie(iter, end) = out_edges(current_id, _graph); iter != end; ++iter)
   {
     lanelet_ptr_t lanelet = _graph[boost::target(*iter, _graph)].lanelet;
@@ -246,7 +261,7 @@ std::set<lanelet_ptr_t> LaneletMap::previous_set(const lanelet_ptr_t& start, boo
 {
   std::set<lanelet_ptr_t> result;
   Graph::in_edge_iterator iter, end;
-  int32_t current_id = vertex_id_by_lanelet(start);
+  int64_t current_id = vertex_id_by_lanelet(start);
   for (boost::tie(iter, end) = in_edges(current_id, _graph); iter != end; ++iter)
   {
     lanelet_ptr_t lanelet = _graph[boost::source(*iter, _graph)].lanelet;
@@ -439,7 +454,7 @@ std::set<lanelet_ptr_t> LaneletMap::beside_set(const lanelet_ptr_t &start) const
 {
   std::set<lanelet_ptr_t> result;
   Graph::out_edge_iterator iter, end;
-  int32_t current_id = vertex_id_by_lanelet(start);
+  int64_t current_id = vertex_id_by_lanelet(start);
   for (boost::tie(iter, end) = out_edges(current_id, _graph); iter != end; ++iter)
   {
     lanelet_ptr_t lanelet = _graph[boost::target(*iter, _graph)].lanelet;
@@ -465,7 +480,7 @@ corridor_ptr_t LaneletMap::corridor(const lanelet_ptr_t &start, const lanelet_pt
   return corridor_ptr_t(new Corridor(start, end, this));
 }
 
-const lanelet_ptr_t &LaneletMap::lanelet_by_id(int32_t id) const
+const lanelet_ptr_t &LaneletMap::lanelet_by_id(int64_t id) const
 {
 
     // Replaced by the code below
@@ -517,7 +532,12 @@ const std::vector<event_region_ptr_t>& LaneletMap::event_regions() const
   return _event_regions;
 }
 
-int32_t LaneletMap::get_minimum_node_id(){
+const std::vector< traffic_light_ptr_t >& LaneletMap::traffic_lights() const
+{
+  return _traffic_lights;
+}
+
+int64_t LaneletMap::get_minimum_node_id(){
   return --_minimum_node_id;
 }
 
@@ -579,7 +599,7 @@ void LaneletMap::init()
 
     BOOST_FOREACH( const lanelet_ptr_t& src, _lanelets )
     {
-        int32_t index_src = this->vertex_id_by_lanelet(src);
+        int64_t index_src = this->vertex_id_by_lanelet(src);
         double len = src->length();
         std::vector<lanelet_ptr_t> lls_around = this->query( src->bb() );
         BOOST_FOREACH( const lanelet_ptr_t& other, lls_around )
@@ -587,7 +607,7 @@ void LaneletMap::init()
             bool const is_predecessor = src->fits_before(other);
             if(is_predecessor || src->fits_beside(other, LEFT) || src->fits_beside(other, RIGHT))
             {
-                int32_t index_dest = this->vertex_id_by_lanelet( other );
+                int64_t index_dest = this->vertex_id_by_lanelet( other );
                 bool inserted;
                 Graph::edge_descriptor new_edge;
                 boost::tie(new_edge, inserted) = boost::add_edge(index_src, index_dest, this->_graph);
@@ -602,11 +622,23 @@ void LaneletMap::init()
 
 }
 
-int32_t LaneletMap::vertex_id_by_lanelet(const lanelet_ptr_t &lanelet) const
+int64_t LaneletMap::vertex_id_by_lanelet(const lanelet_ptr_t &lanelet) const
 {
     std::vector< lanelet_ptr_t >::const_iterator pos = std::find(_lanelets.begin(), _lanelets.end(), lanelet);
     if( pos == _lanelets.end() )
-        throw std::runtime_error("lanelet not found.");
+    {
+	std::stringstream ss;
+        for (std::vector<lanelet_ptr_t>::const_iterator pos=_lanelets.begin(); pos != _lanelets.end(); ++pos)
+        {
+          if ((*pos)->id() == lanelet->id())
+          {
+            ss << "Found lanelet id=" << lanelet->id() << " by id comparison. lanelet_ptr=" << lanelet << " map ptr " << *pos << std::endl;
+  	    throw std::runtime_error(ss.str());
+          }
+        }
+        ss << "Lanelet with id=" << lanelet->id() << " not found."; 
+        throw std::runtime_error(ss.str());
+    }
     else
         return std::distance(_lanelets.begin(), pos);
 }
@@ -796,10 +828,10 @@ TiXmlDocument LaneletMap::toXml()
 
   //collect all nodes, regulatory elements and ways
   ID_Visitor visitor;
-  int32_t stripCounter = -1;
-  int32_t regulatory_element_counter = -1;
-  std::map<int32_t, LLet::point_with_id_t> points;
-  std::map<LLet::regulatory_element_ptr_t, int32_t> regulatory_element_ids;
+  int64_t stripCounter = -1;
+  int64_t regulatory_element_counter = -1;
+  std::map<int64_t, LLet::point_with_id_t> points;
+  std::map<LLet::regulatory_element_ptr_t, int64_t> regulatory_element_ids;
   std::map<int, LLet::regulatory_element_ptr_t> regulatory_elements;
   BOOST_FOREACH(LLet::lanelet_ptr_t lanelet, _lanelets)
   {
@@ -861,7 +893,7 @@ TiXmlDocument LaneletMap::toXml()
     }
   }
 
-  typedef std::map<int32_t, LLet::point_with_id_t>::value_type PointPair;
+  typedef std::map<int64_t, LLet::point_with_id_t>::value_type PointPair;
   BOOST_FOREACH(PointPair pair, points) {
       TiXmlElement node("node");
       node.SetAttribute("id", boost::lexical_cast<std::string>(boost::get<LLet::ID>(pair.second)));
@@ -874,7 +906,7 @@ TiXmlDocument LaneletMap::toXml()
 
 
   //store all strips in XML
-  typedef std::map<LLet::strip_ptr_t, int32_t>::value_type StripPair;
+  typedef std::map<LLet::strip_ptr_t, int64_t>::value_type StripPair;
   BOOST_FOREACH(StripPair pair, visitor.ways()) {
       TiXmlElement way("way");
       way.SetAttribute("id", visitor.ways().at(pair.first));
@@ -917,6 +949,21 @@ TiXmlDocument LaneletMap::toXml()
       tag.SetAttribute("k", "type");
       tag.SetAttribute("v", "lanelet");
       relation_node->InsertEndChild(tag);
+
+      //store lanelet-tags
+      const AttributeMap& attributes = lanelet->attributes();
+      BOOST_FOREACH( const AttributeMap::value_type& a, attributes )
+      {
+          //ignore lanelet-tag itself because it is handled above
+          if (!(a.first == "type" && a.second.as_string() == "lanelet")) {
+              TiXmlElement tag("tag");
+              tag.SetAttribute("k", a.first);
+              tag.SetAttribute("v", a.second.as_string());
+              relation_node->InsertEndChild(tag);
+          }
+
+      }
+
 
       //store the regulatory elements
       BOOST_FOREACH(LLet::regulatory_element_ptr_t regElem, lanelet->regulatory_elements()) {
@@ -1010,7 +1057,7 @@ TiXmlDocument LaneletMap::toXml()
       relatedLaneletNode->InsertEndChild(typeTagElement);
 
 
-      BOOST_FOREACH(int32_t lanelet_id, parking_space->getRelatedLanelets())
+      BOOST_FOREACH(int64_t lanelet_id, parking_space->getRelatedLanelets())
       {
         TiXmlElement memberLanletElement("member");
         memberLanletElement.SetAttribute("type","relation");

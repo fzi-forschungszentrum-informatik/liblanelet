@@ -1,6 +1,25 @@
+
 ============================
 Lanelet maps: ``liblanelet``
 ============================
+
+----
+
+**lanelet2**
+
+*Do you want to use lanelet maps in a new more structured way, well prepared for future autonomous driving applications?*
+
+There is `lanelet2 <https://github.com/fzi-forschungszentrum-informatik/Lanelet2>`_ released now. The successor of liblanelet (which will now be called *lanelet1*).
+
+More here: https://github.com/fzi-forschungszentrum-informatik/Lanelet2
+
+If you still use lanelet1, consider using the lanelet2 `validator <https://github.com/fzi-forschungszentrum-informatik/Lanelet2/tree/master/lanelet2_validation>`_ to check your maps for compatibility with lanelet2.
+
+More info about the differences between lanelet1 and lanelet2 can be found `here <https://github.com/fzi-forschungszentrum-informatik/Lanelet2/blob/master/lanelet2_core/doc/Lanelet1Compability.md>`_.
+
+----
+
+
 
 .. image:: img/lanelet.png
 
